@@ -74,6 +74,9 @@ type Config struct {
 
 	BacklogLengthLimit int `yaml:"backlog_limit"`
 	DonorBacklogLimit  int `yaml:"backlog_limit_donor"`
+
+	// Defaults to true. Set false to skip global slash-command registration.
+	SlashCommands *bool `yaml:"slash_commands"`
 }
 
 type BansFile struct {

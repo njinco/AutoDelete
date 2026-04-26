@@ -140,15 +140,23 @@ func CommandCheck(b *Bot, m *discordgo.Message, rest []string) {
 		return
 	}
 
-	mCh, err := b.GetChannel(m.ChannelID, QOSInteractive)
+	msg, err := b.ChannelSettingsMessage(m.ChannelID)
 	if err != nil {
 		b.s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error checking settings: %v", err))
 		return
 	}
 
+	b.s.ChannelMessageSend(m.ChannelID, msg)
+}
+
+func (b *Bot) ChannelSettingsMessage(channelID string) (string, error) {
+	mCh, err := b.GetChannel(channelID, QOSInteractive)
+	if err != nil {
+		return "", err
+	}
+
 	if mCh == nil {
-		b.s.ChannelMessageSend(m.ChannelID, "This channel is not set up for deletion.")
-		return
+		return "This channel is not set up for deletion.", nil
 	}
 
 	duration := mCh.MessageLiveTime
@@ -171,7 +179,7 @@ func CommandCheck(b *Bot, m *discordgo.Message, rest []string) {
 		fmt.Fprintf(&msg, " I am aware of %d pinned messages.", len(keeps)-1)
 	}
 
-	b.s.ChannelMessageSend(m.ChannelID, msg.String())
+	return msg.String(), nil
 }
 
 func CommandModify(b *Bot, m *discordgo.Message, rest []string) {

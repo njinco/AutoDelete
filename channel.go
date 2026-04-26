@@ -303,7 +303,7 @@ func (c *ManagedChannel) LoadBacklog() error {
 	}
 	c.mu.Unlock()
 	if earlyExit {
-		fmt.Println("[WARN] Cancelling LoadBacklog for", c, "due to <30s elapsed")
+		fmt.Println("[WARN] Cancelling LoadBacklog for", c, "due to very recent reload")
 		return nil
 	}
 	// Clear the progress flag if we set it
@@ -393,7 +393,8 @@ func (c *ManagedChannel) mergeBacklog(msgs []*discordgo.Message) {
 
 		ts, err := v.Timestamp.Parse()
 		if err != nil {
-			panic("Timestamp format change")
+			fmt.Println("[WARN] ignoring message with unparseable timestamp in", c, ":", err)
+			continue
 		}
 		if ts.IsZero() {
 			continue

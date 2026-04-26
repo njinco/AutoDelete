@@ -10,6 +10,76 @@ Self-Hosting the bot (via Azure, AWS, Oracle Cloud, Docker instances) is provide
 
 -- 15-JAN-2023
 
+## Modernization Changelog
+
+The bot owner's last upstream commit in this checkout is `8cd5bdc` from
+2023-01-15, titled `Added #Hiatus Information`. The changes below document the
+local modernization work completed after that upstream commit. The main goal was
+to make the project easier to self-host in Docker without requiring Go or extra
+build tools on the host machine.
+
+### 2026-04-27
+
+- Replaced the old Dockerfile with a multi-stage Docker build.
+  - It builds the bot from this checkout using `golang:1.26.2-bookworm`.
+  - It copies only the compiled binary into a `debian:bookworm-slim` image.
+  - It runs the bot as a non-root `autodelete` user.
+  - It no longer rebuilds the app every time the container starts.
+  - It no longer uses `go get`, `apt upgrade`, or insecure apt flags.
+- Added `.dockerignore` so local config, data, logs, docs, and git history
+  do not get copied into the Docker build.
+- Added `compose.yml` so the bot can run with `docker compose up --build -d`.
+  The compose file uses a named Docker volume for `/autodelete/data`.
+- Updated the Docker instructions in this README so the project can be built
+  in Docker without installing Go on the host.
+- Updated `config.example.yml` so the default listener works inside Docker
+  with published ports.
+- Changed the module declaration from `go 1.13` to `go 1.22`. The Docker
+  builder currently uses Go `1.26.2`.
+- Replaced old `io/ioutil` calls with `os.ReadFile` and `os.ReadDir`.
+- Removed `github.com/pkg/errors` and used standard Go error wrapping instead.
+- Made channel config saves safer by writing to a temporary file first, then
+  renaming it into place after the write succeeds.
+- Tightened startup checks:
+  - The bot now stops if the token is missing.
+  - Non-sharded runs default to shard `0`.
+  - Sharded runs reject invalid shard IDs.
+- Stopped the OAuth callback from printing token objects to the logs.
+- Kept the old Discord OAuth `invalid_client` workaround, but only when
+  `clientsecret` is intentionally empty.
+- Fixed queue bookkeeping so disabled channels are removed from in-flight work
+  tracking.
+- Changed bad Discord message timestamps from a crash into a warning and skip.
+- Replaced the old `go get` setup step in `docs/setup.sh` with an explicit
+  `git clone`.
+- Added `/autodelete` slash command support while keeping all existing
+  mention-based commands.
+  - `/autodelete help`
+  - `/autodelete check`
+  - `/autodelete set duration:<duration> count:<count>`
+- Updated the OAuth invite flow to include the `applications.commands` scope
+  needed for slash commands.
+- Added `slash_commands: true` to the example config. Set it to `false` to skip
+  global slash-command registration.
+- Added `/healthz` to the public and private HTTP listeners.
+- Added a Docker `HEALTHCHECK` using a small compiled healthcheck binary.
+- Added a GitHub Actions workflow that validates Compose, builds the Docker
+  build stage, runs `go test` inside Docker, and builds the runtime image.
+
+Validation completed:
+
+- `docker compose config`
+- `git diff --check`
+- `bash -n docs/setup.sh`
+- `bash -n docs/build.sh`
+
+Validation not completed:
+
+- Docker image build was attempted but blocked because Docker socket access was
+  unavailable.
+- Go tests were not run locally because Go was intentionally not installed on
+  the host. The GitHub Actions workflow runs them inside Docker.
+
 # AutoDelete
 
 ### _retention policies for 'gamers'_
@@ -29,6 +99,10 @@ Announcements server: https://discord.gg/FUGn8yE
 ## Usage
 
 Create a new "purged" channel where messages will automatically be deleted. Someone with MANAGE_MESSAGES permission (usually an admin) needs to say `@AutoDelete start 100 24h` to start the bot and tell it which channel you are using.
+
+If slash commands are registered for the bot, the same channel can also be
+configured with `/autodelete set duration:24h count:100`. The original mention
+commands are still supported.
 
 The `100` in the start command is the maximum number of live messages in the channel before the oldest is deleted.
 The `24h` is a duration after which every message will be deleted. [Acceptable units](https://godoc.org/time#ParseDuration) are `h` for hours, `m` for minutes, `s` for seconds. *Warning*: Durations of a day or longer still need to be specified in hours.
@@ -55,20 +129,34 @@ See the [docs](./docs) directory for setup scripts and the configuration files t
 
 ### Docker
 
-How to build the docker containers:
+The Docker image builds the bot inside the container using the Go toolchain from
+the pinned builder image. You do not need Go installed on the host.
 
 ```
-docker build -t myimages/autodelete:tag .
+docker build -t autodelete:local .
 ```
 
-Pre-built docker containers have been uploaded by the community to https://hub.docker.com/ if you wish to use them. These image owners should also be contactable over the support Discord server.
+Or with Compose:
 
-Required Mounts: 
+```
+docker compose up --build -d
+```
+
+The image expects a runtime config file and writable data directory to be
+mounted into `/autodelete`. For Docker, set `http.listen` in `config.yml` to
+`0.0.0.0:2202` if you want the OAuth callback endpoint reachable through
+`-p 2202:2202`.
+
+Required mounts:
 
 ```
 /path/to/storage/config.yml:/autodelete/config.yml
 /path/to/storage/data/:/autodelete/data/
 ```
+
+The container runs as UID/GID `10001`, so the mounted data directory must be
+writable by that user on Linux hosts. The included `compose.yml` uses a named
+volume for `/autodelete/data` to avoid host bind-mount permission issues.
 
 Example:
 
@@ -78,7 +166,7 @@ docker run -d -p 2202:2202/tcp \
  -v /opt/AutoDelete/config.yml:/autodelete/config.yml \
  -v /opt/AutoDelete/data/:/autodelete/data/ \
  --restart=always \
- myimages/autodelete:tag
+ autodelete:local
 ```
 
 ## Policy

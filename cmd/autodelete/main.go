@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/pprof"
+	"os"
 	rdebug "runtime/debug"
 	"time"
 
@@ -25,7 +25,7 @@ func main() {
 
 	flag.Parse()
 
-	confBytes, err := ioutil.ReadFile("config.yml")
+	confBytes, err := os.ReadFile("config.yml")
 	if err != nil {
 		fmt.Println("Please copy config.yml.example to config.yml and fill out the values")
 		return
@@ -37,19 +37,31 @@ func main() {
 	}
 	if conf.BotToken == "" {
 		fmt.Println("bot token must be specified")
-	}
-	if conf.Shards > 0 && *flagShardID == -1 {
-		fmt.Println("This AutoDelete instance is configured to be sharded; please specify --shard=n")
 		return
 	}
-	if *flagShardID > conf.Shards {
-		fmt.Println("error: shard nbr is > shard count")
-		return
+
+	shardID := *flagShardID
+	if conf.Shards == 0 {
+		if shardID == -1 {
+			shardID = 0
+		} else if shardID != 0 {
+			fmt.Println("This AutoDelete instance is not configured to be sharded; omit --shard or use --shard=0")
+			return
+		}
+	} else {
+		if shardID == -1 {
+			fmt.Println("This AutoDelete instance is configured to be sharded; please specify --shard=n")
+			return
+		}
+		if shardID < 0 || shardID >= conf.Shards {
+			fmt.Println("error: shard nbr must be between 0 and shard count - 1")
+			return
+		}
 	}
 
 	b := autodelete.New(conf)
 
-	err = b.ConnectDiscord(*flagShardID, conf.Shards)
+	err = b.ConnectDiscord(shardID, conf.Shards)
 	if err != nil {
 		fmt.Println("connect error:", err)
 		return
@@ -66,10 +78,11 @@ func main() {
 	}()
 	go func() {
 		privHttp.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		privHttp.HandleFunc("/healthz", healthHandler)
 		privHttp.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
 		metricSvr := &http.Server{
 			Handler: &privHttp,
-			Addr:    fmt.Sprintf("%s:%d", *flagMetricsListen, *flagMetricsPort+*flagShardID),
+			Addr:    fmt.Sprintf("%s:%d", *flagMetricsListen, *flagMetricsPort+shardID),
 		}
 
 		err := metricSvr.ListenAndServe()
@@ -78,6 +91,7 @@ func main() {
 
 	if !*flagNoHttp {
 		fmt.Printf("url: %s%s\n", conf.HTTP.Public, "/discord_auto_delete/oauth/start")
+		pubHttp.HandleFunc("/healthz", healthHandler)
 		pubHttp.HandleFunc("/discord_auto_delete/oauth/start", b.HTTPOAuthStart)
 		pubHttp.HandleFunc("/discord_auto_delete/oauth/callback", b.HTTPOAuthCallback)
 		pubSrv := &http.Server{
@@ -89,4 +103,14 @@ func main() {
 	} else {
 		select {}
 	}
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok\n"))
 }

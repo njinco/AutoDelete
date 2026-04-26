@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -34,7 +33,7 @@ func main() {
 		fmt.Println("usage: pinsHeaders channelID")
 	}
 
-	confBytes, err := ioutil.ReadFile("config.yml")
+	confBytes, err := os.ReadFile("config.yml")
 	if err != nil {
 		fmt.Println("Please copy config.yml.example to config.yml and fill out the values")
 		return

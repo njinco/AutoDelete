@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -24,7 +23,7 @@ func (b *Bot) oauthConfig() *oauth2.Config {
 			AuthURL:  discordgo.EndpointOauth2 + "authorize",
 			TokenURL: discordgo.EndpointOauth2 + "token",
 		},
-		Scopes:      []string{"bot"},
+		Scopes:      []string{"bot", "applications.commands"},
 		RedirectURL: fmt.Sprintf("%s%s", b.HTTP.Public, "/discord_auto_delete/oauth/callback"),
 	}
 	return oauthConfig
@@ -52,12 +51,12 @@ func (b *Bot) HTTPOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t, err := b.oauthConfig().Exchange(r.Context(), r.Form.Get("code"))
-	if err != nil && strings.Contains(err.Error(), "invalid_client") {
+	if err != nil && b.ClientSecret == "" && strings.Contains(err.Error(), "invalid_client") {
 		fmt.Fprint(w, "OK, bot joined\nUse '@AutoDelete setup' to get started")
 		return
 	} else if err != nil {
 		fmt.Printf("%T %v", err, err)
-		http.Error(w, "An error occured and the bot could not join the server.", http.StatusUnprocessableEntity)
+		http.Error(w, "An error occurred and the bot could not join the server.", http.StatusUnprocessableEntity)
 		return
 	}
 	if guildInfo, ok := t.Extra("guild").(map[string]interface{}); ok {
@@ -69,7 +68,7 @@ func (b *Bot) HTTPOAuthCallback(w http.ResponseWriter, r *http.Request) {
 				return
 			} else if err != nil {
 				fmt.Printf("[ERR] Could not check banlist: %T %v", err, err)
-				http.Error(w, "An error occured and the bot may not have joined the server.", http.StatusUnprocessableEntity)
+				http.Error(w, "An error occurred and the bot may not have joined the server.", http.StatusUnprocessableEntity)
 				return
 			}
 		} else {
@@ -79,7 +78,7 @@ func (b *Bot) HTTPOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("[ERR] Unexpected type for guild: got %T\n", t.Extra("guild"))
 	}
 
-	fmt.Println(t)
+	fmt.Println("[INFO] OAuth callback completed")
 	w.WriteHeader(200)
 	fmt.Fprint(w, "OK, bot joined\nUse '@AutoDelete setup' to get started")
 }

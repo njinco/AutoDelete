@@ -1,0 +1,14 @@
+services:
+  autodelete:
+    build:
+      context: .
+    image: autodelete:local
+    restart: unless-stopped
+    ports:
+      - "2202:2202"
+    volumes:
+      - ./config.yml:/autodelete/config.yml:ro
+      - autodelete-data:/autodelete/data
+
+volumes:
+  autodelete-data:

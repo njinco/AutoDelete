@@ -4,8 +4,10 @@ clientsecret:
 bottoken:
 adminuser:
 http:
-  listen: "localhost:2202"
-  public: "https://home.riking.org"
+  # Use 0.0.0.0 in Docker so published ports can reach the bot.
+  listen: "0.0.0.0:2202"
+  public: "https://example.com"
 backlog_limit: 200
 errorlog: ""
 statusmessage: "in the garbage"
+slash_commands: true

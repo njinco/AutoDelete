@@ -1,0 +1,28 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  docker-build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose file
+        run: docker compose config
+
+      - name: Build Docker build stage
+        run: docker build --target build -t autodelete-build .
+
+      - name: Run Go tests inside Docker
+        run: docker run --rm -w /src autodelete-build go test -mod=mod ./...
+
+      - name: Build runtime image
+        run: docker build -t autodelete:ci .

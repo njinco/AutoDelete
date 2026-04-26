@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strconv"
 
@@ -20,7 +20,7 @@ func main() {
 
 	flag.Parse()
 
-	confBytes, err := ioutil.ReadFile("config.yml")
+	confBytes, err := os.ReadFile("config.yml")
 	if err != nil {
 		fmt.Println("Please copy config.yml.example to config.yml and fill out the values")
 		return
@@ -32,6 +32,7 @@ func main() {
 	}
 	if conf.BotToken == "" {
 		fmt.Println("bot token must be specified")
+		return
 	}
 
 	s, err := discordgo.New("Bot " + conf.BotToken)

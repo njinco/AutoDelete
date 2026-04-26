@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/pkg/errors"
 )
 
 const userAgent = "AutoDelete (https://github.com/riking/AutoDelete, v1.4)"
@@ -71,7 +70,7 @@ func (b *Bot) ConnectDiscord(shardID, shardCount int) error {
 		}
 		fmt.Println("shard count recommendation: ", gb.Shards)
 		if !(shardCount == 0 && gb.Shards == 1) && (int(float64(shardCount)*2.5) < gb.Shards) {
-			return errors.Errorf("need to increase shard count: have %d, want %d", shardCount, gb.Shards)
+			return fmt.Errorf("need to increase shard count: have %d, want %d", shardCount, gb.Shards)
 		}
 	}
 	if shardCount != 0 {
@@ -88,16 +87,17 @@ func (b *Bot) ConnectDiscord(shardID, shardCount int) error {
 	s.AddHandler(b.OnChannelPins)
 	s.AddHandler(b.HandleMentions)
 	s.AddHandler(b.OnMessage)
+	s.AddHandler(b.OnRawEvent)
 	me, err := s.User("@me")
 	if err != nil {
 		fmt.Println("get me:", err)
-		return errors.Wrap(err, "get me")
+		return fmt.Errorf("get me: %w", err)
 	}
 	b.me = me
 
 	err = s.Open()
 	if err != nil {
-		return errors.Wrap(err, "open socket")
+		return fmt.Errorf("open socket: %w", err)
 	}
 	return nil
 }
@@ -232,6 +232,14 @@ func (b *Bot) OnChannelPins(s *discordgo.Session, ev *discordgo.ChannelPinsUpdat
 
 func (b *Bot) OnReady(s *discordgo.Session, m *discordgo.Ready) {
 	b.ReportToLogChannel(fmt.Sprintf("AutoDelete started (%d/%d).", b.s.ShardID, b.s.ShardCount))
+	if b.s.ShardID <= 0 {
+		go func() {
+			err := b.RegisterSlashCommands()
+			if err != nil {
+				fmt.Println("error registering slash commands:", err)
+			}
+		}()
+	}
 	go func() {
 		err := b.LoadChannelConfigs()
 		if err != nil {

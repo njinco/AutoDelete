@@ -8,7 +8,8 @@ go version || echo "https://golang.org/dl/"
 
 # Fetch the code
 
-go get -u -v github.com/riking/AutoDelete/cmd/autodelete
+mkdir -p "$(go env GOPATH)/src/github.com/riking"
+git clone https://github.com/riking/AutoDelete "$(go env GOPATH)/src/github.com/riking/AutoDelete"
 
 # Create a folder to house the config and data
 

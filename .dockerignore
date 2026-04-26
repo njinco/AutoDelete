@@ -1,0 +1,10 @@
+.git
+.gitignore
+data/*
+!data/.gitkeep
+config.ini
+config.yml
+*.log
+autodelete
+autodelete.*
+docs

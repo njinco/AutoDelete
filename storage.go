@@ -2,7 +2,6 @@ package autodelete
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -35,7 +34,7 @@ const pathChannelConfig = "./data/%s.yml"
 const pathBanList = "./data/bans.yml"
 
 func (s *DiskStorage) ListChannels() ([]string, error) {
-	files, err := ioutil.ReadDir(pathChannelConfDir)
+	files, err := os.ReadDir(pathChannelConfDir)
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +56,10 @@ func (s *DiskStorage) GetChannel(channelID string) (ManagedChannelMarshal, error
 	var conf ManagedChannelMarshal
 
 	fileName := fmt.Sprintf(pathChannelConfig, channelID)
-	f, err := os.Open(fileName)
+	by, err := os.ReadFile(fileName)
 	if os.IsNotExist(err) {
 		return conf, os.ErrNotExist
 	} else if err != nil {
-		return conf, err
-	}
-	by, err := ioutil.ReadAll(f)
-	f.Close()
-	if err != nil {
 		return conf, err
 	}
 	err = yaml.Unmarshal(by, &conf)
@@ -83,17 +77,25 @@ func (s *DiskStorage) SaveChannel(conf ManagedChannelMarshal) error {
 	if err != nil {
 		panic(err)
 	}
+	if err := os.MkdirAll(pathChannelConfDir, 0700); err != nil {
+		return err
+	}
 	fileName := fmt.Sprintf(pathChannelConfig, conf.ID)
-	f, err := os.Create(fileName)
+	f, err := os.CreateTemp(pathChannelConfDir, "."+conf.ID+".*.tmp")
 	if err != nil {
 		return err
 	}
-	f.Write(by)
+	tmpName := f.Name()
+	defer os.Remove(tmpName)
+	if _, err := f.Write(by); err != nil {
+		f.Close()
+		return err
+	}
 	err = f.Close()
 	if err != nil {
 		return err
 	}
-	return nil
+	return os.Rename(tmpName, fileName)
 }
 func (s *DiskStorage) DeleteChannel(id string) error {
 	fileName := fmt.Sprintf(pathChannelConfig, id)
@@ -105,7 +107,7 @@ func (s *DiskStorage) DeleteChannel(id string) error {
 }
 
 func (s *DiskStorage) IsBanned(guildID string) (bool, error) {
-	by, err := ioutil.ReadFile(pathBanList)
+	by, err := os.ReadFile(pathBanList)
 	if os.IsNotExist(err) {
 		return false, nil
 	} else if err != nil {

@@ -351,6 +351,12 @@ func (b *Bot) QueueLoadBacklog(c *ManagedChannel, qos LoadQOS) {
 	b.loadRetries.Update(c, queuePosition)
 }
 
+func (q *reapQueue) finishWork(ch *ManagedChannel) {
+	q.curMu.Lock()
+	delete(q.curWork, ch)
+	q.curMu.Unlock()
+}
+
 func reapScheduler(q *reapQueue, workerFunc func(*reapQueue, bool)) {
 	q.controlCh <- workerToken{}
 	go workerFunc(q, false)
@@ -430,14 +436,12 @@ func (b *Bot) loadWorker(q *reapQueue, mayTimeout bool) {
 		case work := <-q.workCh:
 			ch := work.ch
 			if ch.IsDisabled() {
+				q.finishWork(ch)
 				continue
 			}
 
 			err := ch.LoadBacklog()
-
-			q.curMu.Lock()
-			delete(q.curWork, ch)
-			q.curMu.Unlock()
+			q.finishWork(ch)
 
 			if isRetryableLoadError(err) {
 				b.QueueLoadBacklog(ch, QOSLoadError)
@@ -453,6 +457,7 @@ func (b *Bot) reapWorker(q *reapQueue, mayTimeout bool) {
 		msgs, shouldQueueBacklog, isDisabled := ch.collectMessagesToDelete()
 		if isDisabled {
 			mReapqDropChannel.WithLabelValues(q.label).Inc()
+			q.finishWork(ch)
 			continue // drop ch
 		}
 
@@ -463,6 +468,7 @@ func (b *Bot) reapWorker(q *reapQueue, mayTimeout bool) {
 		fmt.Printf("[reap] %s: deleting %d messages\n", ch, len(msgs))
 		count, err := ch.Reap(msgs)
 		if b.handleCriticalPermissionsErrors(ch.ChannelID, err) {
+			q.finishWork(ch)
 			continue // drop ch
 		}
 		if err != nil {
@@ -473,9 +479,7 @@ func (b *Bot) reapWorker(q *reapQueue, mayTimeout bool) {
 			shouldQueueBacklog = false
 		}
 
-		q.curMu.Lock()
-		delete(q.curWork, ch)
-		q.curMu.Unlock()
+		q.finishWork(ch)
 		b.QueueReap(ch)
 		if shouldQueueBacklog {
 			b.QueueLoadBacklog(ch, QOSLargeDelete)
