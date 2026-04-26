@@ -50,7 +50,7 @@ build tools on the host machine.
 - Fixed queue bookkeeping so disabled channels are removed from in-flight work
   tracking.
 - Changed bad Discord message timestamps from a crash into a warning and skip.
-- Replaced the old `go get` setup step in `docs/setup.sh` with an explicit
+- Replaced the old `go get` setup step in `docs/legacy/setup.sh` with an explicit
   `git clone`.
 - Added `/autodelete` slash command support while keeping all existing
   mention-based commands.
@@ -65,13 +65,17 @@ build tools on the host machine.
 - Added a Docker `HEALTHCHECK` using a small compiled healthcheck binary.
 - Added a GitHub Actions workflow that validates Compose, builds the Docker
   build stage, runs `go test` inside Docker, and builds the runtime image.
+- Moved the original operator-specific deployment files into `docs/legacy/`.
+  Docker and Compose are now the supported self-hosting path for this checkout.
+- Added focused unit tests for slash-command argument parsing and the `/healthz`
+  HTTP handler.
 
 Validation completed:
 
 - `docker compose config`
 - `git diff --check`
-- `bash -n docs/setup.sh`
-- `bash -n docs/build.sh`
+- `bash -n docs/legacy/setup.sh`
+- `bash -n docs/legacy/build.sh`
 
 Validation not completed:
 
@@ -123,10 +127,6 @@ If you need extra help, say `@AutoDelete adminhelp ... message ...` to send a me
 
 ## Deployment
 
-### Custom
-
-See the [docs](./docs) directory for setup scripts and the configuration files that run the official bot instance.
-
 ### Docker
 
 The Docker image builds the bot inside the container using the Go toolchain from
@@ -169,6 +169,13 @@ docker run -d -p 2202:2202/tcp \
  autodelete:local
 ```
 
+### Legacy Files
+
+Original operator-specific setup scripts, Caddy examples, Prometheus examples,
+and systemd unit files have been moved to `docs/legacy/`. They are retained for
+reference only. Docker and Compose are the maintained self-hosting path for this
+checkout.
+
 ## Policy
 
 The following two sections apply only to the hosted, community instance that can be invited to your server at the link above, as well as the help server and this GitHub repository.
@@ -181,7 +188,7 @@ _The following section is a DRAFT and may be incomplete and is subject to change
 
 No message content is ever retained, except in the case when a message "@-mentions" the bot, where it may be retained to provide support or improve the bot. The "adminhelp" command transmits the provided message content to a channel in Discord and is subject to Discord's retention policies. Deleting a command invocation via the Discord interface has no effect on how long the bot's information about the invocation is stored.
 
-The "community instance" of the bot will retain operational usage data, including data that identifies a particular guild or channel ID and/or with high-resolution timestamps. The full form of this data will be retained for 45 days ([cite](docs/prometheus-autodelete-aggregator.service#L6)), and aggregated or summarized forms will be retained for up to 1.5 years. Usage data will not be used for commercial purposes except for the purpose of encouraging people to financially support the bot in a non-automated manner (in particular, usage data will not be sold or provided to any third party).
+The "community instance" of the bot will retain operational usage data, including data that identifies a particular guild or channel ID and/or with high-resolution timestamps. The full form of this data will be retained for 45 days ([cite](docs/legacy/prometheus-autodelete-aggregator.service#L6)), and aggregated or summarized forms will be retained for up to 1.5 years. Usage data will not be used for commercial purposes except for the purpose of encouraging people to financially support the bot in a non-automated manner (in particular, usage data will not be sold or provided to any third party).
 
 In order to faciliate product support, and response and detection of violations of the Acceptable Use Policy, an automated scan of your Guild structure will be performed and a report produced, with a focus on users and roles carrying the _Manage Messages_ permission and channels where the bot is or was active. These reports may be shared with a limited audience to the extent necessary to identify or cure violations of the Acceptable Use Policy.
 
